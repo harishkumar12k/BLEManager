@@ -1,0 +1,95 @@
+import CoreBluetooth
+
+class BLECentralManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+    var centralManager: CBCentralManager?
+    var discoveredPeripheral: CBPeripheral?
+    let serviceUUID = CBUUID(string: "1234")
+    let characteristicUUID = CBUUID(string: "5678")
+    
+    override init() {
+        super.init()
+        
+        centralManager = CBCentralManager(delegate: self, queue: nil)
+    }
+    
+    // CBCentralManagerDelegate method: Called when the central manager's state updates
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        switch central.state {
+        case .poweredOn:
+            print("Central is powered on. Scanning for peripherals...")
+            centralManager?.scanForPeripherals(withServices: [serviceUUID], options: nil)
+        case .poweredOff:
+            print("Central is powered off.")
+        case .resetting:
+            print("Central is resetting.")
+        case .unauthorized:
+            print("Central is unauthorized.")
+        case .unknown:
+            print("Central state is unknown.")
+        case .unsupported:
+            print("Central is unsupported.")
+        @unknown default:
+            print("Unknown Central state.")
+        }
+    }
+    
+    // CBCentralManagerDelegate method: Called when a peripheral is discovered
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
+        print("Discovered peripheral: \(peripheral.name ?? "Unnamed")")
+        if let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String {
+            // Connect to the peripheral
+            if localName == "EchoPeripheral" {
+                centralManager?.stopScan()
+                discoveredPeripheral = peripheral
+                centralManager?.connect(peripheral, options: nil)
+            }
+        }
+        
+    }
+    
+    // CBCentralManagerDelegate method: Called when connected to a peripheral
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        print("Connected to peripheral: \(peripheral.name ?? "Unnamed")")
+        
+        // Discover services
+        peripheral.delegate = self
+        peripheral.discoverServices([serviceUUID])
+    }
+    
+    // CBPeripheralDelegate method: Called when services are discovered
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        if let services = peripheral.services {
+            for service in services {
+                print("Discovered service: \(service.uuid)")
+                
+                // Discover characteristics for the service
+                peripheral.discoverCharacteristics([characteristicUUID], for: service)
+            }
+        }
+    }
+    
+    // CBPeripheralDelegate method: Called when characteristics are discovered
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        if let characteristics = service.characteristics {
+            for characteristic in characteristics {
+                print("Discovered characteristic: \(characteristic.uuid)")
+                
+                // Read the characteristic value
+                if characteristic.uuid == characteristicUUID {
+                    peripheral.readValue(for: characteristic)
+                    peripheral.writeValue("Hello Peripheral".data(using: .utf8)!, for: characteristic, type: .withResponse)
+                }
+            }
+        }
+    }
+    
+    // CBPeripheralDelegate method: Called when a characteristic's value is updated
+    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        if characteristic.uuid == characteristicUUID {
+            if let value = characteristic.value,
+               let valueString = String(data: value, encoding: .utf8) {
+                print("Received data: \(valueString)")
+            }
+        }
+    }
+}
