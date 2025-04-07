@@ -1,0 +1,91 @@
+import Foundation
+import CoreBluetooth
+
+class BLEPeripheralManager: NSObject, CBPeripheralManagerDelegate {
+    var peripheralManager: CBPeripheralManager?
+    var echoCharacteristic: CBMutableCharacteristic?
+    var echoService: CBMutableService?
+    
+    // Define the UUID for the service and characteristic
+    let serviceUUID = CBUUID(string: "1234")
+    let characteristicUUID = CBUUID(string: "5678")
+
+    override init() {
+        super.init()
+        
+        // Initialize the peripheral manager
+        peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
+    }
+    
+    // CBPeripheralManagerDelegate method: Called when the peripheral manager's state updates
+    func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
+        switch peripheral.state {
+        case .poweredOn:
+            // Start advertising the peripheral when powered on
+            print("Peripheral is powered on. Starting advertisement...")
+            startAdvertising()
+        case .poweredOff:
+            print("Peripheral is powered off.")
+        case .resetting:
+            print("Peripheral is resetting.")
+        case .unauthorized:
+            print("Peripheral is unauthorized.")
+        case .unknown:
+            print("Peripheral state is unknown.")
+        case .unsupported:
+            print("Peripheral is unsupported.")
+        @unknown default:
+            print("Unknown Peripheral state.")
+        }
+    }
+    
+    // Function to start advertising
+    func startAdvertising() {
+        // Create the characteristic
+        echoCharacteristic = CBMutableCharacteristic(
+            type: characteristicUUID,
+            properties: [.read, .write],
+            value: nil,
+            permissions: [.readable, .writeable]
+        )
+        
+        // Create the service and add the characteristic
+        echoService = CBMutableService(type: serviceUUID, primary: true)
+        echoService?.characteristics = [echoCharacteristic!]
+        
+        // Add the service to the peripheral manager
+        peripheralManager?.add(echoService!)
+        let advertisementData: [String: Any] = [
+            CBAdvertisementDataLocalNameKey: "EchoPeripheral",
+            CBAdvertisementDataServiceUUIDsKey: [serviceUUID]
+        ]
+        // Start advertising the service
+        peripheralManager?.startAdvertising(advertisementData)
+    }
+    
+    // CBPeripheralManagerDelegate method: Called when a central reads or writes to the characteristic
+    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
+        if request.characteristic.uuid == characteristicUUID {
+            print("Read request received.")
+            // Return the value for the characteristic (initially nil)
+            request.value = "Echoing data".data(using: .utf8)
+            peripheralManager?.respond(to: request, withResult: .success)
+        }
+    }
+    
+    // CBPeripheralManagerDelegate method: Called when a central writes to the characteristic
+    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
+        for request in requests {
+            if request.characteristic.uuid == characteristicUUID {
+                if let data = request.value {
+                    let dataString = String(data: data, encoding: .utf8) ?? "Invalid data"
+                    print("Received data: \(dataString)")
+                    
+                    // Echo back the data to the central
+                    let echoData = data
+                    peripheralManager?.updateValue(echoData, for: echoCharacteristic!, onSubscribedCentrals: nil)
+                }
+            }
+        }
+    }
+}
