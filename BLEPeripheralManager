@@ -44,7 +44,7 @@ class BLEPeripheralManager: NSObject, CBPeripheralManagerDelegate {
         // Create the characteristic
         echoCharacteristic = CBMutableCharacteristic(
             type: characteristicUUID,
-            properties: [.read, .write],
+            properties: [.read, .write, .notify],
             value: nil,
             permissions: [.readable, .writeable]
         )
