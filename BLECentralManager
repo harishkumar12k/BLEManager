@@ -76,6 +76,7 @@ class BLECentralManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 
                 // Read the characteristic value
                 if characteristic.uuid == characteristicUUID {
+                    peripheral.setNotifyValue(true, for: characteristic)
                     peripheral.readValue(for: characteristic)
                     peripheral.writeValue("Hello Peripheral".data(using: .utf8)!, for: characteristic, type: .withResponse)
                 }
